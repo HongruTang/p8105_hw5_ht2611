@@ -1,0 +1,121 @@
+---
+title: "hw5"
+author: "ht2611"
+date: "2022-11-14"
+output: github_document
+---
+# 2
+
+The data has 12 varaibles of 52179 observations. It records victim's name, race, sex, age and the place they were founded. The more detailed description are showed below in the code.
+```{r}
+library(tidyverse)
+library(purrr)
+homicide=read_csv("./data/homicide-data.csv")
+skimr::skim(homicide)
+```
+
+```{r}
+homicide=homicide%>%
+  mutate(city_state=str_c(city,",",state))
+
+total_home=homicide%>%
+  group_by(city_state)%>%
+  summarise(total=n())
+
+unsolved=homicide%>%
+  filter(disposition!="Closed by arrest")%>%
+  group_by(city_state)%>%
+  summarise(unsolved=n())
+
+request=full_join(total_home,unsolved)
+request
+```
+
+```{r}
+pred_Balt=prop.test(1825,2827)
+broom::tidy(pred_Balt) %>%
+  select(estimate,conf.low,conf.high)
+```
+
+```{r}
+request_test=request%>%
+  na.omit()%>%
+  mutate(prop_test=map2(.x=unsolved,.y=total,~prop.test(x=.x,n=.y)))%>%
+  mutate(prop_test=map(prop_test,broom::tidy))%>%
+  unnest(prop_test)%>%
+  select(city_state,estimate,conf.low,conf.high)
+request_test
+```
+
+```{r}
+request_test %>%
+  mutate(city_state = fct_reorder(city_state,estimate)) %>%
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+  theme(axis.text.x = element_text(angle = 80, hjust=1))
+```
+
+# 3
+
+# basic function for t.test of norm
+
+```{r}
+norm_sim <- function(mu, n = 30, sd = 5) {
+  sim_data=tibble(
+    x <- rnorm(n,mean = mu, sd = sd))
+  
+  sim_data %>%
+    t.test(mu = mu) %>%
+    broom::tidy() %>%
+    select(estimate,p.value)
+}
+```
+
+```{r}
+sim_results_df = 
+  expand_grid(
+    mu=0:6,
+    iter = 1:5000
+  ) %>% 
+  mutate(
+    estimate_df = map(mu, norm_sim)
+  ) %>% 
+  unnest(estimate_df)
+```
+
+```{r}
+df1=sim_results_df%>%
+  group_by(mu)%>%
+  filter(p.value < 0.05) %>%
+   summarise(prop = n()/5000)
+
+df1 %>%
+  ggplot(aes(x = mu,y = prop)) +
+  geom_point() 
+```
+
+The larger the size is, the larger the power is.
+
+```{r}
+df2=sim_results_df%>%
+  group_by(mu)%>%
+  summarise(mu_hat=mean(estimate))
+
+df2%>%
+  ggplot(aes(x = mu,y = mu_hat)) +
+  geom_point()
+```
+
+```{r}
+df3=sim_results_df%>%
+  group_by(mu)%>%
+  filter(p.value < 0.05) %>%
+   summarise(mu_hat=mean(estimate))
+
+df3%>%
+  ggplot(aes(x = mu,y = mu_hat)) +
+  geom_point()
+```
+
+No, they are not equal. Because when the null is rejected, in the 0.05 significant level, the generated u is not equal to true u.
