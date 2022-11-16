@@ -28,7 +28,8 @@ unsolved=homicide%>%
   summarise(unsolved=n())
 
 request=full_join(total_home,unsolved)
-request
+request=request%>%
+  replace(is.na(.),0)
 ```
 
 ```{r}
@@ -66,7 +67,7 @@ norm_sim <- function(mu, n = 30, sd = 5) {
     x <- rnorm(n,mean = mu, sd = sd))
   
   sim_data %>%
-    t.test(mu = mu) %>%
+    t.test(mu = 0) %>%
     broom::tidy() %>%
     select(estimate,p.value)
 }
